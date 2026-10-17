@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Voice to Text & Refiner</title>
+    <title>Voice to Text Recorder</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -56,7 +56,7 @@
             font-weight: bold;
         }
         #startBtn { background-color: #27ae60; }
-        #stopBtn { background-color: #c0392b; }
+        #stopBtn { background-color: #c0392b; display: none; }
         #refineBtn { background-color: #2980b9; width: 100%; margin-bottom: 10px; }
         #clearBtn { background-color: #7f8c8d; width: 100%; }
         
@@ -81,7 +81,7 @@
 <body>
 
 <div class="container">
-    <h2>🎙️ Voice to Text & Refiner</h2>
+    <h2>🎙️ Clean Voice Recorder</h2>
     
     <div class="control-group">
         <label for="languageSelect">Select Language:</label>
@@ -92,18 +92,18 @@
         </select>
     </div>
 
-    <div class="status" id="statusText">Status: Ready to start...</div>
+    <div class="status" id="statusText">Status: Ready to record...</div>
     
     <div class="btn-container">
         <button id="startBtn" onclick="startRecording()">Start Recording</button>
-        <button id="stopBtn" onclick="stopRecording()">Stop</button>
+        <button id="stopBtn" onclick="stopRecording()">Stop & Convert</button>
     </div>
 
     <h3>📝 Refine and Edit Text:</h3>
-    <textarea id="outputBox" placeholder="Your speech will appear here..."></textarea>
+    <textarea id="outputBox" placeholder="Your recorded speech will appear here after stopping..."></textarea>
     
     <br><br>
-    <button id="refineBtn" onclick="refineText()">✨ Clean & Refine Spacing/Duplicates</button>
+    <button id="refineBtn" onclick="refineText()">✨ Clean Spacing</button>
     <button id="clearBtn" onclick="clearText()">Clear All</button>
 </div>
 
@@ -111,99 +111,81 @@
     const outputBox = document.getElementById('outputBox');
     const statusText = document.getElementById('statusText');
     const languageSelect = document.getElementById('languageSelect');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
     
     let recognition;
-    let manualStop = false; 
-    let finalTranscript = "";
 
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         recognition = new SpeechRecognition();
         
+        // এক সেশনে একটানা শোনার জন্য সেটআপ
         recognition.continuous = true;
-        recognition.interimResults = false; // ডবল লেখা আসার সমস্যা এড়াতে এটি false করা হলো
+        recognition.interimResults = true;
+
+        let finalTranscript = "";
 
         recognition.onstart = function() {
-            statusText.innerHTML = "🔴 Status: Recording in progress...";
+            statusText.innerHTML = "🔴 Recording... Speak freely without interruption.";
+            startBtn.style.display = "none";
+            stopBtn.style.display = "block";
         };
 
         recognition.onresult = function(event) {
-            let interimResult = '';
+            let interimText = '';
             for (let i = event.resultIndex; i < event.results.length; ++i) {
                 if (event.results[i].isFinal) {
-                    interimResult += event.results[i][0].transcript;
+                    finalTranscript += event.results[i][0].transcript + " ";
+                } else {
+                    interimText += event.results[i][0].transcript;
                 }
             }
-
-            if (interimResult.trim() !== "") {
-                finalTranscript += interimResult + " ";
-                outputBox.value = finalTranscript;
-            }
+            outputBox.value = finalTranscript + interimText;
         };
 
         recognition.onerror = function(event) {
-            console.log("Error: " + event.error);
+            statusText.innerHTML = "⚠️ Note: " + event.error;
         };
 
         recognition.onend = function() {
-            if (!manualStop) {
-                // মাইক্রোফোন নিজে বন্ধ হলে দ্রুত এবং স্মুথলি আবার চালু করা
-                try {
-                    recognition.lang = languageSelect.value;
-                    recognition.start();
-                } catch (e) {
-                    console.log(e);
-                }
-            } else {
-                statusText.innerHTML = "Status: Recording stopped.";
+            statusText.innerHTML = "Status: Recording stopped and converted.";
+            startBtn.style.display = "block";
+            stopBtn.style.display = "none";
+        };
+
+        window.startRecording = function() {
+            finalTranscript = outputBox.value ? outputBox.value + " " : "";
+            recognition.lang = languageSelect.value;
+            try {
+                recognition.start();
+            } catch (e) {
+                console.log(e);
+            }
+        };
+
+        window.stopRecording = function() {
+            try {
+                recognition.stop();
+            } catch (e) {
+                console.log(e);
             }
         };
 
     } else {
         statusText.innerHTML = "❌ Your browser does not support voice recognition.";
+        startBtn.disabled = true;
     }
 
-    function startRecording() {
-        if (recognition) {
-            manualStop = false;
-            finalTranscript = outputBox.value; // আগের লেখা ঠিক রাখা
-            try {
-                recognition.lang = languageSelect.value;
-                recognition.start();
-            } catch (e) {
-                // অলরেডি রানিং থাকলে ইগনোর করবে
-            }
-        }
-    }
-
-    function stopRecording() {
-        if (recognition) {
-            manualStop = true;
-            recognition.stop();
-            statusText.innerHTML = "Status: Recording stopped.";
-        }
-    }
-
-    // ডবল শব্দ বা অতিরিক্ত স্পেস ক্লিন করার ফাংশন
     function refineText() {
         let text = outputBox.value;
-        // ডুপ্লিকেট শব্দ এবং অতিরিক্ত স্পেস রিমুভ করার রেগুলার এক্সপ্রেশন
-        let words = text.split(/\s+/);
-        let cleanedWords = [];
-        for (let i = 0; i < words.length; i++) {
-            if (i === 0 || words[i] !== words[i - 1]) {
-                cleanedWords.push(words[i]);
-            }
-        }
-        text = cleanedWords.join(' ');
+        text = text.replace(/\s+/g, ' ').trim();
         outputBox.value = text;
-        finalTranscript = text;
-        statusText.innerHTML = "Status: Text refined & duplicates removed!";
+        statusText.innerHTML = "Status: Text cleaned!";
     }
 
     function clearText() {
         outputBox.value = "";
-        finalTranscript = "";
         statusText.innerHTML = "Status: Text cleared.";
     }
 </script>
