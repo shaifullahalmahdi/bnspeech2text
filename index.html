@@ -81,7 +81,7 @@
 <body>
 
 <div class="container">
-    <h2>🎙️ Clean Voice Recorder</h2>
+    <h2>🎙️ Voice to Text Recorder</h2>
     
     <div class="control-group">
         <label for="languageSelect">Select Language:</label>
@@ -92,18 +92,18 @@
         </select>
     </div>
 
-    <div class="status" id="statusText">Status: Ready to record...</div>
+    <div class="status" id="statusText">Status: Ready... Click Start to speak.</div>
     
     <div class="btn-container">
         <button id="startBtn" onclick="startRecording()">Start Recording</button>
-        <button id="stopBtn" onclick="stopRecording()">Stop & Convert</button>
+        <button id="stopBtn" onclick="stopRecording()">Stop Recording</button>
     </div>
 
     <h3>📝 Refine and Edit Text:</h3>
-    <textarea id="outputBox" placeholder="Your recorded speech will appear here after stopping..."></textarea>
+    <textarea id="outputBox" placeholder="Your speech will appear here..."></textarea>
     
     <br><br>
-    <button id="refineBtn" onclick="refineText()">✨ Clean Spacing</button>
+    <button id="refineBtn" onclick="refineText()">✨ Clean Spacing & Duplicates</button>
     <button id="clearBtn" onclick="clearText()">Clear All</button>
 </div>
 
@@ -115,46 +115,58 @@
     const stopBtn = document.getElementById('stopBtn');
     
     let recognition;
+    let finalTranscript = "";
+    let isManualStop = false;
 
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         recognition = new SpeechRecognition();
         
-        // এক সেশনে একটানা শোনার জন্য সেটআপ
+        // সেশন যেন নিজে নিজে বারবার রিস্টার্ট না হয়ে একবারে চলে
         recognition.continuous = true;
-        recognition.interimResults = true;
-
-        let finalTranscript = "";
+        recognition.interimResults = false; // লেখা ডবল হওয়া রোধ করতে ফলস রাখা হয়েছে
 
         recognition.onstart = function() {
-            statusText.innerHTML = "🔴 Recording... Speak freely without interruption.";
+            statusText.innerHTML = "🔴 Recording in progress... Speak now.";
             startBtn.style.display = "none";
             stopBtn.style.display = "block";
         };
 
         recognition.onresult = function(event) {
-            let interimText = '';
+            let currentText = '';
             for (let i = event.resultIndex; i < event.results.length; ++i) {
                 if (event.results[i].isFinal) {
-                    finalTranscript += event.results[i][0].transcript + " ";
-                } else {
-                    interimText += event.results[i][0].transcript;
+                    currentText += event.results[i][0].transcript + " ";
                 }
             }
-            outputBox.value = finalTranscript + interimText;
+            if (currentText.trim() !== "") {
+                finalTranscript += currentText;
+                outputBox.value = finalTranscript;
+            }
         };
 
         recognition.onerror = function(event) {
-            statusText.innerHTML = "⚠️ Note: " + event.error;
+            console.log("Error: " + event.error);
         };
 
         recognition.onend = function() {
-            statusText.innerHTML = "Status: Recording stopped and converted.";
-            startBtn.style.display = "block";
-            stopBtn.style.display = "none";
+            // ব্যবহারকারী নিজে স্টপ না করলে এবং ব্রাউজার হঠাৎ বন্ধ করলে এটি আবার সেশন ধরে রাখবে
+            if (!isManualStop) {
+                try {
+                    recognition.lang = languageSelect.value;
+                    recognition.start();
+                } catch (e) {
+                    console.log(e);
+                }
+            } else {
+                statusText.innerHTML = "Status: Recording stopped successfully.";
+                startBtn.style.display = "block";
+                stopBtn.style.display = "none";
+            }
         };
 
         window.startRecording = function() {
+            isManualStop = false;
             finalTranscript = outputBox.value ? outputBox.value + " " : "";
             recognition.lang = languageSelect.value;
             try {
@@ -165,6 +177,7 @@
         };
 
         window.stopRecording = function() {
+            isManualStop = true;
             try {
                 recognition.stop();
             } catch (e) {
@@ -173,19 +186,29 @@
         };
 
     } else {
-        statusText.innerHTML = "❌ Your browser does not support voice recognition.";
+        statusText.innerHTML = "❌ Browser does not support voice recognition.";
         startBtn.disabled = true;
     }
 
     function refineText() {
         let text = outputBox.value;
-        text = text.replace(/\s+/g, ' ').trim();
+        // অতিরিক্ত স্পেস এবং ডুপ্লিকেট শব্দ দূর করা
+        let words = text.split(/\s+/);
+        let cleanedWords = [];
+        for (let i = 0; i < words.length; i++) {
+            if (i === 0 || words[i] !== words[i - 1]) {
+                cleanedWords.push(words[i]);
+            }
+        }
+        text = cleanedWords.join(' ');
         outputBox.value = text;
+        finalTranscript = text;
         statusText.innerHTML = "Status: Text cleaned!";
     }
 
     function clearText() {
         outputBox.value = "";
+        finalTranscript = "";
         statusText.innerHTML = "Status: Text cleared.";
     }
 </script>
