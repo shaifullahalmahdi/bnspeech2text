@@ -100,10 +100,10 @@
     </div>
 
     <h3>📝 Refine and Edit Text:</h3>
-    <textarea id="outputBox" placeholder="Your speech will appear here. You can also manually edit or use the refine button below..."></textarea>
+    <textarea id="outputBox" placeholder="Your speech will appear here..."></textarea>
     
     <br><br>
-    <button id="refineBtn" onclick="refineText()">✨ Clean & Refine Spacing/Punctuation</button>
+    <button id="refineBtn" onclick="refineText()">✨ Clean & Refine Spacing/Duplicates</button>
     <button id="clearBtn" onclick="clearText()">Clear All</button>
 </div>
 
@@ -114,46 +114,40 @@
     
     let recognition;
     let manualStop = false; 
-    let finalTranscriptBackup = "";
+    let finalTranscript = "";
 
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         recognition = new SpeechRecognition();
         
         recognition.continuous = true;
-        recognition.interimResults = true; // লাইভ লেখার জন্য ইন্টারিম অন রাখা হলো
+        recognition.interimResults = false; // ডবল লেখা আসার সমস্যা এড়াতে এটি false করা হলো
 
         recognition.onstart = function() {
             statusText.innerHTML = "🔴 Status: Recording in progress...";
         };
 
         recognition.onresult = function(event) {
-            let interimTranscript = '';
-            let currentFinal = '';
-
+            let interimResult = '';
             for (let i = event.resultIndex; i < event.results.length; ++i) {
                 if (event.results[i].isFinal) {
-                    currentFinal += event.results[i][0].transcript;
-                } else {
-                    interimTranscript += event.results[i][0].transcript;
+                    interimResult += event.results[i][0].transcript;
                 }
             }
 
-            if (currentFinal) {
-                finalTranscriptBackup += currentFinal + " ";
+            if (interimResult.trim() !== "") {
+                finalTranscript += interimResult + " ";
+                outputBox.value = finalTranscript;
             }
-
-            // লাইভ টেক্সট বক্স আপডেট করা যাতে থেমে যাওয়ার সমস্যা না হয়
-            outputBox.value = finalTranscriptBackup + interimTranscript;
         };
 
         recognition.onerror = function(event) {
             console.log("Error: " + event.error);
         };
 
-        // ব্রাউজার কোনো কারণে অটো-স্টপ করলে যেন রিস্টার্ট হয়ে যায়
         recognition.onend = function() {
             if (!manualStop) {
+                // মাইক্রোফোন নিজে বন্ধ হলে দ্রুত এবং স্মুথলি আবার চালু করা
                 try {
                     recognition.lang = languageSelect.value;
                     recognition.start();
@@ -172,12 +166,12 @@
     function startRecording() {
         if (recognition) {
             manualStop = false;
-            finalTranscriptBackup = outputBox.value; // আগের লেখা সেভ রাখা
+            finalTranscript = outputBox.value; // আগের লেখা ঠিক রাখা
             try {
                 recognition.lang = languageSelect.value;
                 recognition.start();
             } catch (e) {
-                // রানিং থাকলে ইগনোর করবে
+                // অলরেডি রানিং থাকলে ইগনোর করবে
             }
         }
     }
@@ -190,19 +184,26 @@
         }
     }
 
-    // অতিরিক্ত স্পেস ও এলোমেলো ডবল শব্দ রিফাইন বা ক্লিন করার ফাংশন
+    // ডবল শব্দ বা অতিরিক্ত স্পেস ক্লিন করার ফাংশন
     function refineText() {
         let text = outputBox.value;
-        // অতিরিক্ত ডবল স্পেস বা ভুল ডুপ্লিকেট শব্দ ক্লিন করা
-        text = text.replace(/\s+/g, ' ').trim();
+        // ডুপ্লিকেট শব্দ এবং অতিরিক্ত স্পেস রিমুভ করার রেগুলার এক্সপ্রেশন
+        let words = text.split(/\s+/);
+        let cleanedWords = [];
+        for (let i = 0; i < words.length; i++) {
+            if (i === 0 || words[i] !== words[i - 1]) {
+                cleanedWords.push(words[i]);
+            }
+        }
+        text = cleanedWords.join(' ');
         outputBox.value = text;
-        finalTranscriptBackup = text;
-        statusText.innerHTML = "Status: Text refined successfully!";
+        finalTranscript = text;
+        statusText.innerHTML = "Status: Text refined & duplicates removed!";
     }
 
     function clearText() {
         outputBox.value = "";
-        finalTranscriptBackup = "";
+        finalTranscript = "";
         statusText.innerHTML = "Status: Text cleared.";
     }
 </script>
