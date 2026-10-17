@@ -43,7 +43,7 @@
         .btn-container {
             display: flex;
             gap: 10px;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
         button {
             flex: 1;
@@ -57,11 +57,12 @@
         }
         #startBtn { background-color: #27ae60; }
         #stopBtn { background-color: #c0392b; }
+        #refineBtn { background-color: #2980b9; width: 100%; margin-bottom: 10px; }
         #clearBtn { background-color: #7f8c8d; width: 100%; }
         
         textarea {
             width: 100%;
-            height: 200px;
+            height: 180px;
             padding: 12px;
             font-size: 16px;
             border: 1px solid #ccc;
@@ -99,9 +100,10 @@
     </div>
 
     <h3>📝 Refine and Edit Text:</h3>
-    <textarea id="outputBox" placeholder="Your speech will appear here. You can manually edit, fix, or refine the text anytime..."></textarea>
+    <textarea id="outputBox" placeholder="Your speech will appear here. You can also manually edit or use the refine button below..."></textarea>
     
     <br><br>
+    <button id="refineBtn" onclick="refineText()">✨ Clean & Refine Spacing/Punctuation</button>
     <button id="clearBtn" onclick="clearText()">Clear All</button>
 </div>
 
@@ -111,40 +113,47 @@
     const languageSelect = document.getElementById('languageSelect');
     
     let recognition;
-    let manualStop = false; // ব্যবহারকারী নিজে স্টপ না করা পর্যন্ত চালু রাখার ফ্ল্যাগ
+    let manualStop = false; 
+    let finalTranscriptBackup = "";
 
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         recognition = new SpeechRecognition();
         
         recognition.continuous = true;
-        recognition.interimResults = false;
+        recognition.interimResults = true; // লাইভ লেখার জন্য ইন্টারিম অন রাখা হলো
 
         recognition.onstart = function() {
             statusText.innerHTML = "🔴 Status: Recording in progress...";
         };
 
         recognition.onresult = function(event) {
-            let finalTranscript = '';
+            let interimTranscript = '';
+            let currentFinal = '';
+
             for (let i = event.resultIndex; i < event.results.length; ++i) {
                 if (event.results[i].isFinal) {
-                    finalTranscript += event.results[i][0].transcript;
+                    currentFinal += event.results[i][0].transcript;
+                } else {
+                    interimTranscript += event.results[i][0].transcript;
                 }
             }
 
-            if (finalTranscript.trim() !== "") {
-                outputBox.value += finalTranscript + " ";
+            if (currentFinal) {
+                finalTranscriptBackup += currentFinal + " ";
             }
+
+            // লাইভ টেক্সট বক্স আপডেট করা যাতে থেমে যাওয়ার সমস্যা না হয়
+            outputBox.value = finalTranscriptBackup + interimTranscript;
         };
 
         recognition.onerror = function(event) {
-            statusText.innerHTML = "⚠️ Error: " + event.error;
+            console.log("Error: " + event.error);
         };
 
-        // ব্রাউজার স্বয়ংক্রিয়ভাবে বন্ধ করে দিলে এটি চেক করবে ব্যবহারকারী স্টপ করতে বলেছে কিনা
+        // ব্রাউজার কোনো কারণে অটো-স্টপ করলে যেন রিস্টার্ট হয়ে যায়
         recognition.onend = function() {
             if (!manualStop) {
-                // ইউজার স্টপ না করলে অটোমেটিক আবার রিস্টার্ট হবে
                 try {
                     recognition.lang = languageSelect.value;
                     recognition.start();
@@ -157,31 +166,43 @@
         };
 
     } else {
-        statusText.innerHTML = "❌ Your browser does not support voice recognition. Please use Google Chrome.";
+        statusText.innerHTML = "❌ Your browser does not support voice recognition.";
     }
 
     function startRecording() {
         if (recognition) {
             manualStop = false;
+            finalTranscriptBackup = outputBox.value; // আগের লেখা সেভ রাখা
             try {
                 recognition.lang = languageSelect.value;
                 recognition.start();
             } catch (e) {
-                // যদি অলরেডি রানিং থাকে
+                // রানিং থাকলে ইগনোর করবে
             }
         }
     }
 
     function stopRecording() {
         if (recognition) {
-            manualStop = true; // ইউজার নিজে থামিয়েছে
+            manualStop = true;
             recognition.stop();
             statusText.innerHTML = "Status: Recording stopped.";
         }
     }
 
+    // অতিরিক্ত স্পেস ও এলোমেলো ডবল শব্দ রিফাইন বা ক্লিন করার ফাংশন
+    function refineText() {
+        let text = outputBox.value;
+        // অতিরিক্ত ডবল স্পেস বা ভুল ডুপ্লিকেট শব্দ ক্লিন করা
+        text = text.replace(/\s+/g, ' ').trim();
+        outputBox.value = text;
+        finalTranscriptBackup = text;
+        statusText.innerHTML = "Status: Text refined successfully!";
+    }
+
     function clearText() {
         outputBox.value = "";
+        finalTranscriptBackup = "";
         statusText.innerHTML = "Status: Text cleared.";
     }
 </script>
