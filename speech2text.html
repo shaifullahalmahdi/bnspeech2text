@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice to Text & Refiner</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f6f9;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        h2 {
+            text-align: center;
+            color: #2c3e50;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+        select {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background: #fff;
+        }
+        .btn-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            flex: 1;
+            padding: 12px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            color: white;
+            font-weight: bold;
+        }
+        #startBtn { background-color: #27ae60; }
+        #stopBtn { background-color: #c0392b; }
+        #clearBtn { background-color: #7f8c8d; width: 100%; }
+        
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 12px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+        .status {
+            text-align: center;
+            font-style: italic;
+            color: #e67e22;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🎙️ Voice to Text & Refiner</h2>
+    
+    <div class="control-group">
+        <label for="languageSelect">Select Language:</label>
+        <select id="languageSelect">
+            <option value="bn-BD" selected>Bengali (বাংলা)</option>
+            <option value="en-US">English (US)</option>
+            <option value="hi-IN">Hindi (हिन्दी)</option>
+        </select>
+    </div>
+
+    <div class="status" id="statusText">Status: Ready to start...</div>
+    
+    <div class="btn-container">
+        <button id="startBtn" onclick="startRecording()">Start Recording</button>
+        <button id="stopBtn" onclick="stopRecording()">Stop</button>
+    </div>
+
+    <h3>📝 Refine and Edit Text:</h3>
+    <textarea id="outputBox" placeholder="Your speech will appear here. You can manually edit, fix, or refine the text anytime..."></textarea>
+    
+    <br><br>
+    <button id="clearBtn" onclick="clearText()">Clear All</button>
+</div>
+
+<script>
+    const outputBox = document.getElementById('outputBox');
+    const statusText = document.getElementById('statusText');
+    const languageSelect = document.getElementById('languageSelect');
+    
+    let recognition;
+    let manualStop = false; // ব্যবহারকারী নিজে স্টপ না করা পর্যন্ত চালু রাখার ফ্ল্যাগ
+
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SpeechRecognition();
+        
+        recognition.continuous = true;
+        recognition.interimResults = false;
+
+        recognition.onstart = function() {
+            statusText.innerHTML = "🔴 Status: Recording in progress...";
+        };
+
+        recognition.onresult = function(event) {
+            let finalTranscript = '';
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                    finalTranscript += event.results[i][0].transcript;
+                }
+            }
+
+            if (finalTranscript.trim() !== "") {
+                outputBox.value += finalTranscript + " ";
+            }
+        };
+
+        recognition.onerror = function(event) {
+            statusText.innerHTML = "⚠️ Error: " + event.error;
+        };
+
+        // ব্রাউজার স্বয়ংক্রিয়ভাবে বন্ধ করে দিলে এটি চেক করবে ব্যবহারকারী স্টপ করতে বলেছে কিনা
+        recognition.onend = function() {
+            if (!manualStop) {
+                // ইউজার স্টপ না করলে অটোমেটিক আবার রিস্টার্ট হবে
+                try {
+                    recognition.lang = languageSelect.value;
+                    recognition.start();
+                } catch (e) {
+                    console.log(e);
+                }
+            } else {
+                statusText.innerHTML = "Status: Recording stopped.";
+            }
+        };
+
+    } else {
+        statusText.innerHTML = "❌ Your browser does not support voice recognition. Please use Google Chrome.";
+    }
+
+    function startRecording() {
+        if (recognition) {
+            manualStop = false;
+            try {
+                recognition.lang = languageSelect.value;
+                recognition.start();
+            } catch (e) {
+                // যদি অলরেডি রানিং থাকে
+            }
+        }
+    }
+
+    function stopRecording() {
+        if (recognition) {
+            manualStop = true; // ইউজার নিজে থামিয়েছে
+            recognition.stop();
+            statusText.innerHTML = "Status: Recording stopped.";
+        }
+    }
+
+    function clearText() {
+        outputBox.value = "";
+        statusText.innerHTML = "Status: Text cleared.";
+    }
+</script>
+
+</body>
+</html>
